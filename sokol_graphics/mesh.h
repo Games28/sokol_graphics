@@ -163,6 +163,35 @@ struct Mesh {
 		return false;
 	}
 
+	void getClosestpt(vf3d& player_pos)
+	{
+		float record = 0.0f;
+		bool closest = false;
+		vf3d p0, p1, p2;
+		for (const auto& t : tris)
+		{
+			vf3d close_pt = getClosePt(player_pos, verts[t.a].pos, verts[t.b].pos, verts[t.c].pos);
+			vf3d sub =  close_pt - player_pos;
+			float dist2 = sub.mag2();
+
+			if (dist2 < record)
+			{
+				record = dist2;
+				closest = true;
+				p0 = verts[t.a].pos;
+				p1 = verts[t.b].pos;
+				p2 = verts[t.c].pos;
+
+			}
+		}
+		
+		if (closest)
+		{
+			vf3d norm = getNorm(p0, p1, p2);
+			player_pos -= norm * norm.dot(player_pos);
+		}
+	}
+
 	float intersectRay(const vf3d& orig_world, const vf3d& dir_world) const {
 		//localize ray
 		float w=1;//want translation

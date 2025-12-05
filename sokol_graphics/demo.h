@@ -112,7 +112,7 @@ struct Demo : SokolEngine {
 	bool fps_controls=false;
 
 	//player kinematics
-	float gravity = 9.8f, player_height = 0.25f, player_rad = 0.1f, player_airtime = 0;
+	float gravity = -9.8f, player_height = 0.25f, player_rad = 0.1f, player_airtime = 0;
 	bool player_on_ground = false;
 	vf3d player_pos, player_vel;
 
@@ -234,12 +234,24 @@ struct Demo : SokolEngine {
 
 #pragma region UPDATE HELPERS
 
+
+
 	void updateJumping(float dt)
 	{
+		
+
 
 		if (fps_controls)
 		{
-			if (!player_on_ground)
+			if (player_on_ground)
+			{
+				for (auto& obj : objects)
+				{
+					obj.mesh.getClosestpt(cam_pos);
+					
+				}
+			}
+			else
 			{
 				player_vel += gravity * dt;
 			}
@@ -260,7 +272,7 @@ struct Demo : SokolEngine {
 				}
 			}
 
-			
+			cam_pos += player_vel * dt;
 
 		}
 	}
