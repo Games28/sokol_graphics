@@ -8,7 +8,7 @@
 
 //for time
 #include <ctime>
-#include "Light.h"
+
 
 #include "texture.h"
 
@@ -83,10 +83,21 @@ struct Object {
 };
 
 
+struct Light
+{
+	vf3d pos;
+	sg_color col;
+};
 
 struct Demo : SokolEngine {
 	sg_bindings bindings;
 	sg_pipeline pipeline;
+
+	//2d texture test
+	struct {
+		sg_pipeline pip{};
+		sg_bindings bind{};
+	} texview;
 
 	//cam info
 	vf3d cam_pos{0, 2, 2};
@@ -95,12 +106,10 @@ struct Demo : SokolEngine {
 	float cam_pitch=-Pi/4;
 
 	//scene info
-	//vf3d light_pos{-1, 3, 1};
-	std::vector<Light_Source> lights = {
-		{{ -1, 3, 1}, .2, .7, .3},
-		{{ -2, 3, 2}, .4, .3, .4},
-		{{ -1, 3, 2}, .5, .5, .4}
-	};
+	std::list<Light> lights;
+	Light* red_light, * green_light, * blue_light;
+
+	bool renderquad = false;
 
 	const std::vector<std::string> Structurefilenames{
 			"assets/models/desert.txt",
@@ -141,17 +150,25 @@ struct Demo : SokolEngine {
 
 #pragma region SETUP HELPERS
 	
-	sg_view getTexture( const std::string& filename)
+	sg_view getTexture(const std::string& filename)
 	{
-		sg_view tex_checker;
-		sg_view tex_blank = makeBlankTexture();
-		sg_view tex_uv = makeUVTexture(1024, 1024);
 		
-		tex_checker = tex_blank;
-		makeTextureFromFile(tex_checker, filename);
+		
+			sg_view tex_checker;
+			sg_view tex_blank = makeBlankTexture();
+			sg_view tex_uv = makeUVTexture(1024, 1024);
+			if (filename == " ")
+			{
+				tex_checker = tex_blank;
+			}
+			else
+			{
+				makeTextureFromFile(tex_checker, filename);
+			}
 
-		return tex_checker;
-
+			return tex_checker;
+		
+		
 	}
 
 	
@@ -176,6 +193,15 @@ struct Demo : SokolEngine {
 		objects.push_back({ m, getTexture("assets/img/sandtexture.png")});
 	}
 
+	void setupPlatform() {
+		Mesh m;
+		m = Mesh::makeCube();
+		m.scale = { 8, .5f, 8 };
+		m.translation = { 0, -2, 0 };
+		m.updateMatrixes();
+
+		objects.push_back({ m, getTexture(" ")});
+	}
 
 	void setupBillboard() {
 		Mesh m;
@@ -193,9 +219,83 @@ struct Demo : SokolEngine {
 		m.updateIndexBuffer();
 		m.updateMatrixes();
 
-		objects.push_back({ m, getTexture("assets/img/bluestone.png"),true});
+		objects.push_back({ m, getTexture("assets/img/tree2x100.png"),true});
 		billboard=&objects.back();
 	}
+
+	void setupLights()
+	{
+		//red
+		lights.push_back({ {-1,3,1},{1,0,0,1} });
+		red_light = &lights.back();
+
+		//green
+		lights.push_back({ {-1,3,1},{0,1,0,1} });
+		green_light = &lights.back();
+
+		//blue
+		lights.push_back({ {-1,3,1},{0,0,1,1} });
+		blue_light = &lights.back();
+
+	}
+
+	void setupTexview()
+	{
+		//2d tristrip pipeline
+		sg_pipeline_desc pip_desc{};
+		pip_desc.layout.attrs[ATTR_texview_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
+		pip_desc.layout.attrs[ATTR_texview_v_uv].format = SG_VERTEXFORMAT_FLOAT2;
+		pip_desc.shader = sg_make_shader(texview_shader_desc(sg_query_backend()));
+		pip_desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
+		texview.pip = sg_make_pipeline(pip_desc);
+
+		//quad vertex buffer: xyuv
+		float vertexes[4][2][2]{
+			{{-1, -1}, {0, 0}},//tl
+			{{1, -1}, {1, 0}},//tr
+			{{-1, 1}, {0, 1}},//bl
+			{{1, 1}, {1, 1}}//br
+		};
+		sg_buffer_desc vbuf_desc{};
+		vbuf_desc.data.ptr = vertexes;
+		vbuf_desc.data.size = sizeof(vertexes);
+		texview.bind.vertex_buffers[0] = sg_make_buffer(vbuf_desc);
+
+		//sampler
+		texview.bind.samplers[SMP_texview_smp] = sampler;
+		//sg_pipeline_desc pip_desc{};
+		//pip_desc.layout.attrs[ATTR_texview_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
+		//pip_desc.layout.attrs[ATTR_texview_v_uv].format = SG_VERTEXFORMAT_FLOAT2;
+		//pip_desc.shader = sg_make_shader(texview_shader_desc(sg_query_backend()));
+		//pip_desc.index_type = SG_INDEXTYPE_UINT32;
+		//texview.pip = sg_make_pipeline(pip_desc);
+		////bindings: just a quad
+	    ////vertex buffer: xyuv
+		//float vertexes[4][2][2]{
+		//		{{-1, -1}, {0, 0}},//tl
+		//		{{1, -1}, {1, 0}},//tr
+		//		{{-1, 1}, {0, 1}},//bl
+		//		{{1, 1}, {1, 1}}//br
+		//};
+		//sg_buffer_desc vbuf_desc{};
+		//vbuf_desc.data.ptr = vertexes;
+		//vbuf_desc.size = sizeof(vertexes);
+		//texview.bind.vertex_buffers[0] = sg_make_buffer(vbuf_desc);
+		//
+		////index buffer
+		//std::uint32_t indexes[2][3]{
+		//		{0, 2, 1}, {1, 2, 3}
+		//};
+		//sg_buffer_desc ibuf_desc{};
+		//ibuf_desc.usage.index_buffer = true;
+		//ibuf_desc.data.ptr = indexes;
+		//ibuf_desc.size = sizeof(indexes);
+		//texview.bind.index_buffer = sg_make_buffer(ibuf_desc);
+		//
+		////sampler
+		//texview.bind.samplers[SMP_texview_smp] = sampler;
+	}
+	
 
 	void setupPipeline() {
 		sg_pipeline_desc pipeline_desc{};
@@ -221,9 +321,13 @@ struct Demo : SokolEngine {
 		setupSampler();
 
 		setupStructures();
-
+		//setupPlatform();
 
 		setupBillboard();
+
+		setupLights();
+
+		setupTexview();
 
 		setupPipeline();
 
@@ -236,47 +340,7 @@ struct Demo : SokolEngine {
 
 
 
-	void updateJumping(float dt)
-	{
-		
-
-
-		if (fps_controls)
-		{
-			if (player_on_ground)
-			{
-				for (auto& obj : objects)
-				{
-					obj.mesh.getClosestpt(cam_pos);
-					
-				}
-			}
-			else
-			{
-				player_vel += gravity * dt;
-			}
-
-			//airtime
-			player_airtime += dt;
-
-			player_on_ground = false;
-
-			for (auto& obj : objects)
-			{
-				if (obj.mesh.getClosePr(cam_pos, player_rad))
-				{
-					player_vel = { 0,0,0 };
-					player_on_ground = true;
-					player_airtime = 0;
-
-				}
-			}
-
-			cam_pos += player_vel * dt;
-
-		}
-	}
-
+	
 	void updateMatrixes() {
 		//camera transformation matrix
 		mat4 look_at=mat4::makeLookAt(cam_pos, cam_pos+cam_dir, {0, 1, 0});
@@ -423,15 +487,10 @@ struct Demo : SokolEngine {
 			if(grab_action.released) handleGrabActionEnd();
 		}
 
-		//place billboard at camera
-		if(getKey(SAPP_KEYCODE_B).held) {
-			billboard->mesh.translation=cam_pos;
-		}
+		if (getKey(SAPP_KEYCODE_R).held) red_light->pos = cam_pos;
+		if (getKey(SAPP_KEYCODE_G).held) green_light->pos = cam_pos;
+		if (getKey(SAPP_KEYCODE_B).held) blue_light->pos = cam_pos;
 
-		//set light pos
-		if(getKey(SAPP_KEYCODE_L).held) {
-			lights[1].pos = cam_pos;
-		}
 
 		if(getKey(SAPP_KEYCODE_F11).pressed) {
 			sapp_toggle_fullscreen();
@@ -439,10 +498,14 @@ struct Demo : SokolEngine {
 
 		//exit on escape
 		if(getKey(SAPP_KEYCODE_ESCAPE).pressed) sapp_request_quit();
+
+		if (getKey(SAPP_KEYCODE_C).pressed) renderquad ^= true;
 	}
 
 	//make billboard always point at camera.
 	void updateBillboard() {
+
+		//move with player 
 		vf3d eye_pos=billboard->mesh.translation;
 		vf3d target=cam_pos;
 
@@ -485,14 +548,50 @@ struct Demo : SokolEngine {
 
 		handleUserInput(dt);
 
-		updateJumping(dt);
+		
 
-		updateBillboard();
+	 	updateBillboard();
 
 		updateColor(dt);
 	}
 
 #pragma region RENDER HELPERS
+
+	
+	void renderQuad()
+	{
+		//const int tile_size = 200;
+		//
+		//
+		//	texview.bind.views[VIEW_texview_tex] = getTexture("assets/img/tree2x100.png"); //shadow_map.faces[i].tex_color_view;
+		//	sg_apply_bindings(texview.bind);
+		//
+		//	sg_apply_viewport(0, 0, tile_size, tile_size, true);
+		//
+		//	//4 verts = 1quad
+		//	sg_draw(0, 4, 1);
+		//
+
+		const int tile_size = 200;
+		const int idx[6][2]{
+			{0, 0}, {1, 0}, {2, 0},
+			{0, 1}, {1, 1}, {2, 1}
+		};
+		for (int i = 0; i < 1; i++) {
+			sg_apply_pipeline(texview.pip);
+
+			texview.bind.views[VIEW_texview_tex] = getTexture("assets/img/tree2x100.png"); //shadow_map.faces[i].tex_color_view;
+			sg_apply_bindings(texview.bind);
+
+			int x = tile_size * idx[i][0];
+			int y = tile_size * idx[i][1];
+			sg_apply_viewport(x, y, tile_size, tile_size, true);
+
+			//4 verts = 1quad
+			sg_draw(0, 4, 1);
+		}
+	}
+
 	void renderObject(const Object& o) {
 		//update bindings
 		bindings.vertex_buffers[0]=o.mesh.vbuf;
@@ -520,39 +619,34 @@ struct Demo : SokolEngine {
 
 		sg_apply_pipeline(pipeline);
 
-		
-		
 		fs_params_t fs_params{};
-		fs_params.u_light_pos[0] = lights[0].pos.x;
-		fs_params.u_light_pos[1] = lights[0].pos.y;
-		fs_params.u_light_pos[2] = lights[0].pos.z;
-		fs_params.u_cam_pos[0] = cam_pos.x;
-		fs_params.u_cam_pos[1] = cam_pos.y;
-		fs_params.u_cam_pos[2] = cam_pos.z;
-		fs_params.u_ambient_intensity = lights[0].ambi_int;
-		fs_params.u_diffuse_intensity = lights[0].diff_int;
-		fs_params.u_specular_intensity = lights[0].spec_int;
-		
+		{
+			fs_params.u_num_lights = lights.size();
+			int idx = 0;
+			for (const auto& l : lights)
+			{
+				fs_params.u_light_pos[idx][0] = l.pos.x;
+				fs_params.u_light_pos[idx][1] = l.pos.y;
+				fs_params.u_light_pos[idx][2] = l.pos.z;
+				fs_params.u_light_col[idx][0] = l.col.r;
+				fs_params.u_light_col[idx][1] = l.col.g;
+				fs_params.u_light_col[idx][2] = l.col.b;
+				idx++;
+			}
+		}
+
+		fs_params.u_view_pos[0] = cam_pos.x;
+		fs_params.u_view_pos[1] = cam_pos.y;
+		fs_params.u_view_pos[2] = cam_pos.z;
 		sg_apply_uniforms(UB_fs_params, SG_RANGE(fs_params));
 
-		
-		
-		//send fragment uniforms
-		//fs_params_t fs_params{};
-		//fs_params.u_light_pos[0]=light_pos.x;
-		//fs_params.u_light_pos[1]=light_pos.y;
-		//fs_params.u_light_pos[2]=light_pos.z;
-		//fs_params.u_cam_pos[0]=cam_pos.x;
-		//fs_params.u_cam_pos[1]=cam_pos.y;
-		//fs_params.u_cam_pos[2]=cam_pos.z;
-		//fs_params.u_ambient_intensity = .2;
-		//fs_params.u_diffuse_intensity = .7;
-		//fs_params.u_specular_intensity = .3;
-		//sg_apply_uniforms(UB_fs_params, SG_RANGE(fs_params));
+
 
 		for(const auto& o:objects) {
 			renderObject(o);
 		}
+
+		renderQuad();
 
 		sg_end_pass();
 		sg_commit();

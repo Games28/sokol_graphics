@@ -15,16 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="demo.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="mesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="return_code.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="shd.glsl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="sokol_engine.h">
@@ -37,6 +31,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Light.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="demo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shd.glsl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
