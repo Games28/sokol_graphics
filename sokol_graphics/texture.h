@@ -5,6 +5,11 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+struct textureInfo
+{
+	int width, height, channels;
+};
+
 static sg_view makeTextureFromPixels(std::uint32_t* pixels, int width, int height) {
 	sg_image_desc image_desc{};
 	image_desc.width=width;
@@ -59,4 +64,17 @@ static sg_view makeUVTexture(int width, int height) {
 
 	return {true, "success"};
 }
+
+textureInfo gettextureinfo(const std::string& filename)
+{
+	textureInfo texture;
+	unsigned char* pixels8 = stbi_load(filename.c_str(), &texture.width, &texture.height, &texture.channels, 4);
+	if (!pixels8) {
+		fprintf(stderr, "failed to load image");  
+		
+	}
+
+	return texture;
+}
+
 #endif

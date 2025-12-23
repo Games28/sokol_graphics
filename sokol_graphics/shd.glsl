@@ -90,6 +90,8 @@ void main() {
 
 @program shd vs fs
 
+//////////2d texture animation//////////////////////
+
 @vs vs_texview
 
 in vec2 v_pos;
@@ -100,7 +102,8 @@ out vec2 uv;
 void main()
 {
 	gl_Position = vec4(v_pos, .5, 1);
-	uv = v_uv;
+	uv.x = v_uv.x;
+	uv.y = -v_uv.y;
 }
 
 @end
@@ -110,15 +113,61 @@ void main()
 layout(binding = 0) uniform texture2D texview_tex;
 layout(binding = 0) uniform sampler texview_smp;
 
+layout(binding = 0) uniform fs_texview_params
+{
+	int u_full_tex;
+	vec2 u_tl;
+	vec2 u_br;
+};
+
 in vec2 uv;
 
 out vec4 frag_color;
 
 void main()
 {
-	frag_color = texture(sampler2D(texview_tex, texview_smp), uv);
+	
+	vec4 col = texture(sampler2D(texview_tex,texview_smp),u_tl + uv * (u_br - u_tl));
+	frag_color = vec4(col.rgb, 1);
 }
 
 @end
 
 @program texview vs_texview fs_texview
+
+///////// static texture /////////////////////////////////////
+
+@vs vs_bbview
+
+in vec2 v_pos;
+in vec2 v_uv;
+
+out vec2 uv;
+
+void main()
+{
+	gl_Position = vec4(v_pos, .5, 1);
+	uv.x = v_uv.x;
+	uv.y = -v_uv.y;
+}
+
+@end
+
+@fs fs_bbview
+
+layout(binding = 0) uniform texture2D bbview_tex;
+layout(binding = 0) uniform sampler bbview_smp;
+
+
+in vec2 uv;
+
+out vec4 frag_color;
+
+void main()
+{
+	frag_color=vec4(texture(sampler2D(bbview_tex, bbview_smp), uv).xxx, 1);
+}
+
+@end
+
+@program bbview vs_bbview fs_bbview

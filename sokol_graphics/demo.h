@@ -49,32 +49,6 @@ vf3d rayIntersectPlane(const vf3d& orig, const vf3d& dir, const vf3d& ctr, const
 	return orig+t*dir;
 }
 
-//https://www.rapidtables.com/convert/color/hsv-to-rgb.html
-static sg_color hsv2rgb(int h, float s, float v) {
-	float c=v*s;
-	float x=c*(1-std::abs(1-std::fmod(h/60.f, 2)));
-	float m=v-c;
-	float r=0, g=0, b=0;
-	switch(h/60) {
-		case 0: r=c, g=x, b=0; break;
-		case 1: r=x, g=c, b=0; break;
-		case 2: r=0, g=c, b=x; break;
-		case 3: r=0, g=x, b=c; break;
-		case 4: r=x, g=0, b=c; break;
-		case 5: r=c, g=0, b=x; break;
-	}
-	return {m+r, m+g, m+b, 1};
-}
-
-static sg_color randomPastel() {
-	//hue=pure color
-	int h=std::rand()%360;
-	//saturation=intensity
-	float s=randFloat(.1f, .4f);
-	//value=brightness
-	float v=randFloat(.75f, 1);
-	return hsv2rgb(h, s, v);
-}
 
 struct Object {
 	Mesh mesh;
@@ -127,9 +101,10 @@ struct Demo : SokolEngine {
 
 	sg_sampler sampler;
 	
-	sg_view tex_blank;
-	sg_view tex_uv;
-	sg_view tex_checker;
+	sg_view tex_blank{};
+	sg_view tex_uv{};
+	sg_view tex_checker{};
+	sg_view tex_thing{};
 
 	std::vector<Object> objects;
 
@@ -144,7 +119,7 @@ struct Demo : SokolEngine {
 	Object* grab_obj=nullptr;
 	vf3d grab_ctr, grab_norm;
 
-	float color_timer=0;
+	float color_timer = 0; int anim = 5;
 	const float color_period=5;
 	sg_color prev_col, next_col, curr_col;
 
@@ -241,6 +216,8 @@ struct Demo : SokolEngine {
 
 	void setupTexview()
 	{
+
+	
 		//2d tristrip pipeline
 		sg_pipeline_desc pip_desc{};
 		pip_desc.layout.attrs[ATTR_texview_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
@@ -263,37 +240,7 @@ struct Demo : SokolEngine {
 
 		//sampler
 		texview.bind.samplers[SMP_texview_smp] = sampler;
-		//sg_pipeline_desc pip_desc{};
-		//pip_desc.layout.attrs[ATTR_texview_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
-		//pip_desc.layout.attrs[ATTR_texview_v_uv].format = SG_VERTEXFORMAT_FLOAT2;
-		//pip_desc.shader = sg_make_shader(texview_shader_desc(sg_query_backend()));
-		//pip_desc.index_type = SG_INDEXTYPE_UINT32;
-		//texview.pip = sg_make_pipeline(pip_desc);
-		////bindings: just a quad
-	    ////vertex buffer: xyuv
-		//float vertexes[4][2][2]{
-		//		{{-1, -1}, {0, 0}},//tl
-		//		{{1, -1}, {1, 0}},//tr
-		//		{{-1, 1}, {0, 1}},//bl
-		//		{{1, 1}, {1, 1}}//br
-		//};
-		//sg_buffer_desc vbuf_desc{};
-		//vbuf_desc.data.ptr = vertexes;
-		//vbuf_desc.size = sizeof(vertexes);
-		//texview.bind.vertex_buffers[0] = sg_make_buffer(vbuf_desc);
-		//
-		////index buffer
-		//std::uint32_t indexes[2][3]{
-		//		{0, 2, 1}, {1, 2, 3}
-		//};
-		//sg_buffer_desc ibuf_desc{};
-		//ibuf_desc.usage.index_buffer = true;
-		//ibuf_desc.data.ptr = indexes;
-		//ibuf_desc.size = sizeof(indexes);
-		//texview.bind.index_buffer = sg_make_buffer(ibuf_desc);
-		//
-		////sampler
-		//texview.bind.samplers[SMP_texview_smp] = sampler;
+		
 	}
 	
 
@@ -331,9 +278,9 @@ struct Demo : SokolEngine {
 
 		setupPipeline();
 
+		tex_thing = getTexture("assets/img/animation_test.png");
 		//init rand cols
-		prev_col=randomPastel();
-		next_col=randomPastel();
+		
 	}
 
 #pragma region UPDATE HELPERS
@@ -526,18 +473,7 @@ struct Demo : SokolEngine {
 	}
 
 	void updateColor(float dt) {
-		if(color_timer>color_period) {
-			color_timer-=color_period;
-
-			prev_col=next_col;
-			next_col=randomPastel();
-		}
-
-		//lerp between prev & next
-		float t=color_timer/color_period;
-		curr_col=prev_col+t*(next_col-prev_col);
-
-		color_timer+=dt;
+		
 	}
 #pragma endregion
 
@@ -560,36 +496,43 @@ struct Demo : SokolEngine {
 	
 	void renderQuad()
 	{
-		//const int tile_size = 200;
-		//
-		//
-		//	texview.bind.views[VIEW_texview_tex] = getTexture("assets/img/tree2x100.png"); //shadow_map.faces[i].tex_color_view;
-		//	sg_apply_bindings(texview.bind);
-		//
-		//	sg_apply_viewport(0, 0, tile_size, tile_size, true);
-		//
-		//	//4 verts = 1quad
-		//	sg_draw(0, 4, 1);
-		//
+		int animation = 0;
+		textureInfo t_info = gettextureinfo("assets/img/animation_test.png");
+		//int row = animation / t_info.width;
+		//int col = animation % t_info.width;
+		//float u_left = col / float(t_info.width);
+		//float u_right = (1 + col) / float(t_info.width);
+		//float v_top = row / float(t_info.height);
+		//float v_btm = (1 + row) / float(t_info.height);
 
-		const int tile_size = 200;
-		const int idx[6][2]{
-			{0, 0}, {1, 0}, {2, 0},
-			{0, 1}, {1, 1}, {2, 1}
-		};
-		for (int i = 0; i < 1; i++) {
-			sg_apply_pipeline(texview.pip);
 
-			texview.bind.views[VIEW_texview_tex] = getTexture("assets/img/tree2x100.png"); //shadow_map.faces[i].tex_color_view;
-			sg_apply_bindings(texview.bind);
+		//works sort of 
+		int selection = t_info.width / anim;
+		int col = selection * animation;
+		int row = anim % t_info.width;
+		float u_left = .5 * col;
+		float v_top = .5 * row;
+		float u_right = .5 * (1 + col);
+		float v_btm = .5 * (1 + row);
 
-			int x = tile_size * idx[i][0];
-			int y = tile_size * idx[i][1];
-			sg_apply_viewport(x, y, tile_size, tile_size, true);
 
-			//4 verts = 1quad
-			sg_draw(0, 4, 1);
-		}
+		sg_apply_pipeline(texview.pip);
+		
+		texview.bind.views[VIEW_texview_tex] = tex_thing;
+		sg_apply_bindings(texview.bind);
+
+		fs_texview_params_t fs_tex_params{};
+
+		fs_tex_params.u_tl[0] = v_top;
+		fs_tex_params.u_tl[1] = u_left;
+		fs_tex_params.u_br[0] = v_btm;
+		fs_tex_params.u_br[1] = u_right;
+		sg_apply_uniforms(UB_fs_texview_params, SG_RANGE(fs_tex_params));
+
+		sg_apply_viewport(0, 0, 100,100, true);
+
+		//4 verts = 1quad
+		sg_draw(0, 4, 1);
 	}
 
 	void renderObject(const Object& o) {
