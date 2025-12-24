@@ -56,6 +56,13 @@ struct Object {
 	bool draggable=false;
 };
 
+struct bb_Object
+{
+	Mesh mesh;
+	sg_view tex{ SG_INVALID_ID };
+	bool draggable = false;
+};
+
 
 struct Light
 {
@@ -66,12 +73,24 @@ struct Light
 struct Demo : SokolEngine {
 	sg_bindings bindings;
 	sg_pipeline pipeline;
+	
 
 	//2d texture test
 	struct {
 		sg_pipeline pip{};
 		sg_bindings bind{};
-	} texview;
+	} tex_anim_view;
+
+	struct {
+		sg_pipeline pip{};
+		sg_bindings bind{};
+	} tex_view;
+
+	struct
+	{
+		sg_pipeline pip{};
+		sg_bindings bind{};
+	}billboard_view;
 
 	//cam info
 	vf3d cam_pos{0, 2, 2};
@@ -107,8 +126,9 @@ struct Demo : SokolEngine {
 	sg_view tex_thing{};
 
 	std::vector<Object> objects;
+	std::vector<bb_Object> bbobjects;
 
-	Object* billboard;
+	bb_Object* billboard;
 
 	mat4 view_proj;
 
@@ -194,8 +214,8 @@ struct Demo : SokolEngine {
 		m.updateIndexBuffer();
 		m.updateMatrixes();
 
-		objects.push_back({ m, getTexture("assets/img/tree2x100.png"),true});
-		billboard=&objects.back();
+		bbobjects.push_back({ m, tex_thing,true});
+		billboard=&bbobjects.back();
 	}
 
 	void setupLights()
@@ -214,17 +234,17 @@ struct Demo : SokolEngine {
 
 	}
 
-	void setupTexview()
+	void setup_Anim_Quad()
 	{
 
 	
-		//2d tristrip pipeline
+		//2d animated quad pipeline
 		sg_pipeline_desc pip_desc{};
 		pip_desc.layout.attrs[ATTR_texview_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
 		pip_desc.layout.attrs[ATTR_texview_v_uv].format = SG_VERTEXFORMAT_FLOAT2;
 		pip_desc.shader = sg_make_shader(texview_shader_desc(sg_query_backend()));
 		pip_desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
-		texview.pip = sg_make_pipeline(pip_desc);
+		tex_anim_view.pip = sg_make_pipeline(pip_desc);
 
 		//quad vertex buffer: xyuv
 		float vertexes[4][2][2]{
@@ -236,13 +256,38 @@ struct Demo : SokolEngine {
 		sg_buffer_desc vbuf_desc{};
 		vbuf_desc.data.ptr = vertexes;
 		vbuf_desc.data.size = sizeof(vertexes);
-		texview.bind.vertex_buffers[0] = sg_make_buffer(vbuf_desc);
+		tex_anim_view.bind.vertex_buffers[0] = sg_make_buffer(vbuf_desc);
 
 		//sampler
-		texview.bind.samplers[SMP_texview_smp] = sampler;
+		tex_anim_view.bind.samplers[SMP_texview_smp] = sampler;
 		
 	}
 	
+	void setup_Quad()
+	{
+		//2d texture quad
+		sg_pipeline_desc pip_desc{};
+		pip_desc.layout.attrs[ATTR_bbview_v_pos].format = SG_VERTEXFORMAT_FLOAT2;
+		pip_desc.layout.attrs[ATTR_bbview_v_uv].format = SG_VERTEXFORMAT_FLOAT2;
+		pip_desc.shader = sg_make_shader(bbview_shader_desc(sg_query_backend()));
+		pip_desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
+		tex_view.pip = sg_make_pipeline(pip_desc);
+
+
+		//quad vertex buffer: xyuv
+		float vertexes[4][2][2]{
+			{{-1, -1}, {0, 0}},//tl
+			{{1, -1}, {1, 0}},//tr
+			{{-1, 1}, {0, 1}},//bl
+			{{1, 1}, {1, 1}}//br
+		};
+
+		sg_buffer_desc vbuf_desc{};
+		vbuf_desc.data.ptr = vertexes;
+		vbuf_desc.data.size = sizeof(vertexes);
+		tex_view.bind.vertex_buffers[0] = sg_make_buffer(vbuf_desc);
+		tex_view.bind.samplers[SMP_bbview_smp] = sampler;
+	}
 
 	void setupPipeline() {
 		sg_pipeline_desc pipeline_desc{};
@@ -257,6 +302,21 @@ struct Demo : SokolEngine {
 		pipeline_desc.depth.compare=SG_COMPAREFUNC_LESS_EQUAL;
 		pipeline=sg_make_pipeline(pipeline_desc);
 	}
+
+	void setup_billboard_pipeline()
+	{
+		sg_pipeline_desc pipeline_desc{};
+		pipeline_desc.shader = sg_make_shader(shd_shader_desc(sg_query_backend()));
+		pipeline_desc.layout.attrs[ATTR_bba_pos].format = SG_VERTEXFORMAT_FLOAT3;
+		pipeline_desc.layout.attrs[ATTR_bba_norm].format = SG_VERTEXFORMAT_FLOAT3;
+		pipeline_desc.layout.attrs[ATTR_bba_uv].format = SG_VERTEXFORMAT_SHORT2N;
+		pipeline_desc.index_type = SG_INDEXTYPE_UINT32;//use the index buffer
+		pipeline_desc.cull_mode = SG_CULLMODE_FRONT;
+
+		pipeline_desc.depth.write_enabled = true;//use depth buffer
+		pipeline_desc.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
+		billboard_view.pip = sg_make_pipeline(pipeline_desc);
+	}
 #pragma endregion
 
 	void userCreate() override {
@@ -269,12 +329,15 @@ struct Demo : SokolEngine {
 
 		setupStructures();
 		//setupPlatform();
+		setup_billboard_pipeline();
 
 		setupBillboard();
 
 		setupLights();
 
-		setupTexview();
+		setup_Anim_Quad();
+
+		setup_Quad();
 
 		setupPipeline();
 
@@ -454,8 +517,7 @@ struct Demo : SokolEngine {
 
 		//move with player 
 		vf3d eye_pos=billboard->mesh.translation;
-		vf3d target=cam_pos;
-
+		vf3d target = cam_pos;
 		vf3d y_axis(0, 1, 0);
 		vf3d z_axis=(target-eye_pos).norm();
 		vf3d x_axis=y_axis.cross(z_axis).norm();
@@ -494,42 +556,49 @@ struct Demo : SokolEngine {
 #pragma region RENDER HELPERS
 
 	
-	void renderQuad()
+	void render_Anim_Quad()
 	{
 		int animation = 0;
-		textureInfo t_info = gettextureinfo("assets/img/animation_test.png");
-		//int row = animation / t_info.width;
-		//int col = animation % t_info.width;
-		//float u_left = col / float(t_info.width);
-		//float u_right = (1 + col) / float(t_info.width);
-		//float v_top = row / float(t_info.height);
-		//float v_btm = (1 + row) / float(t_info.height);
-
-
-		//works sort of 
-		int selection = t_info.width / anim;
-		int col = selection * animation;
-		int row = anim % t_info.width;
-		float u_left = .5 * col;
-		float v_top = .5 * row;
-		float u_right = .5 * (1 + col);
-		float v_btm = .5 * (1 + row);
-
-
-		sg_apply_pipeline(texview.pip);
+		int width = 5;
+		int height = 2;
 		
-		texview.bind.views[VIEW_texview_tex] = tex_thing;
-		sg_apply_bindings(texview.bind);
+		int row = animation / width;
+		int col = animation % width;
+		float u_left = col / float(width);
+		float u_right = (1 + col) / float(width);
+		float v_top = row / float(height);
+		float v_btm = (1 + row) / float(height);
+
+	
+
+
+		sg_apply_pipeline(tex_anim_view.pip);
+		
+		tex_anim_view.bind.views[VIEW_texview_tex] = tex_thing;
+		sg_apply_bindings(tex_anim_view.bind);
 
 		fs_texview_params_t fs_tex_params{};
 
-		fs_tex_params.u_tl[0] = v_top;
-		fs_tex_params.u_tl[1] = u_left;
-		fs_tex_params.u_br[0] = v_btm;
-		fs_tex_params.u_br[1] = u_right;
+		fs_tex_params.u_tl[0] = u_left;
+		fs_tex_params.u_tl[1] = v_top;
+		fs_tex_params.u_br[0] = u_right;
+		fs_tex_params.u_br[1] = v_btm;
 		sg_apply_uniforms(UB_fs_texview_params, SG_RANGE(fs_tex_params));
 
 		sg_apply_viewport(0, 0, 100,100, true);
+
+		//4 verts = 1quad
+		sg_draw(0, 4, 1);
+	}
+
+	void render_Quad()
+	{
+		sg_apply_pipeline(tex_view.pip);
+
+		tex_view.bind.views[VIEW_bbview_tex] = tex_thing;
+		sg_apply_bindings(tex_view.bind);
+
+		sg_apply_viewport(50, 50, 100, 100,false);
 
 		//4 verts = 1quad
 		sg_draw(0, 4, 1);
@@ -550,6 +619,23 @@ struct Demo : SokolEngine {
 
 		sg_draw(0, 3*o.mesh.tris.size(), 1);
 	}
+
+	void renderBillBoards(const bb_Object& b)
+	{
+		//update bindings
+		billboard_view.bind.vertex_buffers[0] = b.mesh.ibuf;
+		billboard_view.bind.index_buffer = b.mesh.ibuf;
+		billboard_view.bind.views[VIEW_u_bba_tex] = b.tex;
+		sg_apply_bindings(billboard_view.bind);
+
+		//send vertex uniforms
+		vs_bba_params_t vs_bba_params{};
+		std::memcpy(vs_bba_params.u_model, b.mesh.model.m, sizeof(vs_bba_params.u_model));
+		std::memcpy(vs_bba_params.u_proj_view, view_proj.m, sizeof(vs_bba_params.u_proj_view));
+		sg_apply_uniforms(UB_vs_bba_params, SG_RANGE(vs_bba_params));
+		sg_draw(0, 3 * b.mesh.tris.size(), 1);
+	}
+
 #pragma endregion
 
 	void userRender() {
@@ -583,13 +669,59 @@ struct Demo : SokolEngine {
 		fs_params.u_view_pos[2] = cam_pos.z;
 		sg_apply_uniforms(UB_fs_params, SG_RANGE(fs_params));
 
+		//billboard test
+		fs_bba_params_t fs_bba_params{};
+		{
+			int animation = 0;
+			int width = 5;
+			int height = 2;
 
+			int row = animation / width;
+			int col = animation % width;
+			float u_left = col / float(width);
+			float u_right = (1 + col) / float(width);
+			float v_top = row / float(height);
+			float v_btm = (1 + row) / float(height);
+
+			
+
+			fs_bba_params.u_tl[0] = u_left;
+			fs_bba_params.u_tl[1] = v_top;
+			fs_bba_params.u_br[0] = u_right;
+			fs_bba_params.u_br[1] = v_btm;
+			fs_bba_params.u_num_lights = lights.size();
+			int idx = 0;
+			for (const auto& l : lights)
+			{
+				fs_bba_params.u_light_pos[idx][0] = l.pos.x;
+				fs_bba_params.u_light_pos[idx][1] = l.pos.y;
+				fs_bba_params.u_light_pos[idx][2] = l.pos.z;
+				fs_bba_params.u_light_col[idx][0] = l.col.r;
+				fs_bba_params.u_light_col[idx][1] = l.col.g;
+				fs_bba_params.u_light_col[idx][2] = l.col.b;
+				idx++;
+			}
+		}
+
+		fs_bba_params.u_view_pos[0] = cam_pos.x;
+		fs_bba_params.u_view_pos[1] = cam_pos.y;
+		fs_bba_params.u_view_pos[2] = cam_pos.z;
+		sg_apply_uniforms(UB_fs_bba_params, SG_RANGE(fs_bba_params));
+		
+		
 
 		for(const auto& o:objects) {
 			renderObject(o);
 		}
 
-		renderQuad();
+		for (const auto& b : bbobjects)
+		{
+			
+			renderBillBoards(b);
+		}
+
+		render_Anim_Quad();
+		render_Quad();
 
 		sg_end_pass();
 		sg_commit();
